@@ -7,7 +7,7 @@ st.subheader("Select a Product")
 
 # Products (main appliances)
 products = {
-    "Rice Mill": {"base_price": 800, "default_voltage": "AC", "default_rating": 230, "default_power_watts": 1500, "weight": 0},
+    "Rice Mill": {"base_price": 800, "default_voltage": "AC", "default_rating": 230, "default_power_watts": 1500, "weight": 45},
     "Custom Product": {"base_price": 300, "default_voltage": "DC", "default_rating": 24, "default_power_watts": 500, "weight": 0}
 }
 
