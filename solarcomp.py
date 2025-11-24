@@ -1,5 +1,52 @@
 import streamlit as st
 
+# Add custom CSS for dropdown styling
+st.markdown(
+    """
+    <style>
+    /* Container for dropdown labels */
+    .dropdown-container {
+        background-color: #34eb83;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        margin: 8px 0;
+    }
+    
+    /* Style the actual dropdown menu when opened */
+    .stSelectbox [data-testid="stSelectbox"] div[role="listbox"] {
+        background-color: #34eb83 !important;
+        border: 1px solid #e9ecef !important;
+        border-radius: 8px !important;
+        padding: 8px !important;
+        margin-top: 4px !important;
+    }
+    
+    /* Style the dropdown options */
+    .stSelectbox [data-testid="stSelectbox"] div[role="listbox"] div {
+        padding: 8px 12px !important;
+        border-radius: 4px !important;
+        margin: 2px 0 !important;
+    }
+    
+    /* Hover effect for dropdown options */
+    .stSelectbox [data-testid="stSelectbox"] div[role="listbox"] div:hover {
+        background-color: #e9ecef !important;
+    }
+    
+    /* Style multiselect dropdowns as well */
+    .stMultiSelect [data-testid="stMultiSelect"] div[role="listbox"] {
+        background-color: #34eb83 !important;
+        border: 1px solid #e9ecef !important;
+        border-radius: 8px !important;
+        padding: 8px !important;
+        margin-top: 4px !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 st.title("🔆 Solar Product Configurator with Inline Component Settings")
 
 # --- Step 1: Product Selection ---
@@ -106,12 +153,21 @@ components_data = {
     "CSC48401 - Controller Beast": {"base_price": 120, "weight": 0.5, "category": "Controllers", "power_rating": 1920, "voltage": "DC", "max_current": 40, "default_rating": 48},
     
     # Batteries
-    "CBA75001 - Battery 750Wh": {"base_price": 150, "weight": 9.0, "category": "Batteries", "capacity": 750, "voltage": 25.6, "c_rating": 1.0, "default_rating": 25.6},
-    "CBA15001 - Battery 1.5kWh": {"base_price": 250, "weight": 18.0, "category": "Batteries", "capacity": 1500, "voltage": 51.2, "c_rating": 1.0, "default_rating": 51.2},
-    "CBA20001 - Battery 5kWh": {"base_price": 1000, "weight": 50.0, "category": "Batteries", "capacity": 5000, "voltage": 25.6, "c_rating": 1.0, "includes_controller": True, "default_rating": 25.6},
+    "CBA75001 - Battery 750Wh": {"base_price": 150, "weight": 9.0, "category": "Batteries", "voltage": 25.6, "capacity_ah": 30, "c_rating": 1.0, "default_rating": 25.6},
+    "CBA15001 - Battery 1.5kWh": {"base_price": 250, "weight": 18.0, "category": "Batteries", "voltage": 51.2, "capacity_ah": 30, "c_rating": 1.0, "default_rating": 51.2},
+    "CBA20001 - Battery 5kWh": {"base_price": 1000, "weight": 50.0, "category": "Batteries", "voltage": 25.6, "capacity_ah": 200, "c_rating": 1.0, "includes_controller": True, "default_rating": 25.6},    
     
+    # 🔥 ADD CUSTOM BATTERY RIGHT HERE 🔥
+    "Custom Battery": {"base_price": 100, "weight": 10.0, "category": "Batteries", "voltage": 24, "capacity_ah": 0, "c_rating": 1.0, "default_rating": 24},
+
     # Power Conversion
-    "Inverter": {"base_price": 200, "weight": 2.0, "category": "Power Conversion", "voltage": "DC → AC", "default_rating": 48},
+    "Inverter": {"base_price": 200, "weight": 2.0, "category": "Power Conversion", "voltage": "DC → AC", "default_rating": 48, "capacity_options": [
+        {"capacity": 500, "price_adjust": 0},
+        {"capacity": 1000, "price_adjust": 100},
+        {"capacity": 2000, "price_adjust": 300},
+        {"capacity": 3000, "price_adjust": 500},
+        {"capacity": 5000, "price_adjust": 800}
+    ]},
     
     # Solar Panels
     "CSP12501 - Solar panel 125W": {"base_price": 45, "weight": 8.0, "category": "Solar Panels", "power_rating": 125, "voltage": 24, "default_rating": 24},
@@ -183,10 +239,31 @@ if add_components:
                     key=f"price_{name}"
                 )
 
+                # Quantity Input for ALL components
+                quantity = st.number_input(
+                    f"🔢 {name} Quantity:", 
+                    min_value=1, 
+                    value=1, 
+                    step=1, 
+                    key=f"qty_{name}"
+                )
+
                 # Power Rating for controllers, solar panels, and appliances
                 power_rating = comp_data.get("power_rating", 0)
                 if power_rating == 0 and "default_power" in comp_data:
                     power_rating = comp_data["default_power"]
+
+                # Inverter Capacity Selection
+                if name == "Inverter":
+                    inverter_option = st.selectbox(
+                        "Inverter Capacity:",
+                        options=comp_data["capacity_options"],
+                        format_func=lambda x: f"{x['capacity']}W",
+                        key=f"inverter_cap_{name}"
+                    )
+                    power_rating = inverter_option["capacity"]
+                    price += inverter_option["price_adjust"]
+                    st.markdown(f"_Capacity: {power_rating}W_")
                 
                 if power_rating > 0:
                     if "Solar panel" in name:
@@ -199,27 +276,51 @@ if add_components:
                 if max_current > 0:
                     st.markdown(f"_Max Current: {max_current}A_")
                 
+                # Define battery_capacity_wh with default value for ALL components
+                battery_capacity_wh = 0
+                battery_capacity_ah = 0
+                battery_voltage = 24
+                battery_c_rating = 1.0 
+
                 # Battery Specific Settings
-                battery_capacity = comp_data.get("capacity", 0)
-                battery_c_rating = comp_data.get("c_rating", 1.0)
                 if "Battery" in name:
-                    if battery_capacity > 0:
-                        st.markdown(f"_Capacity: {battery_capacity}Wh, Voltage: {comp_data.get('voltage', 24)}V_")
+                    battery_capacity_ah = comp_data.get("capacity_ah", 0)
+                    battery_voltage = comp_data.get("voltage", 24)
+                    battery_c_rating = comp_data.get("c_rating", 1.0)
+                    
+                    if battery_capacity_ah > 0:
+                        # Pre-configured battery - show Ah and calculated Wh
+                        battery_capacity_wh = battery_voltage * battery_capacity_ah
+                        st.markdown(f"_Capacity: {battery_capacity_ah}Ah ({battery_capacity_wh}Wh), Voltage: {battery_voltage}V_")
                     else:
-                        battery_capacity = st.number_input(
-                            "🔋 Battery Capacity (Wh):", 
+                        # Custom battery - allow user to input Ah and Voltage
+                        battery_capacity_ah = st.number_input(
+                            "🔋 Battery Capacity (Ah):", 
                             min_value=0, 
-                            value=2000, 
-                            step=100, 
-                            key=f"capacity_{name}"
+                            value=100, 
+                            step=10, 
+                            key=f"capacity_ah_{name}"
                         )
+                        battery_voltage = st.number_input(
+                            "⚡ Battery Voltage (V):",
+                            min_value=0,
+                            value=24,
+                            step=12,
+                            key=f"batt_volt_{name}"
+                        )
+                        battery_capacity_wh = battery_voltage * battery_capacity_ah
+                    
+                    # C-Rating dropdown with grey box
+                    st.markdown('<div class="dropdown-container">', unsafe_allow_html=True)
                     battery_c_rating = st.selectbox(
                         "C-Rating:", 
                         options=[0.5, 1.0, 2.0, 3.0], 
                         index=[0.5, 1.0, 2.0, 3.0].index(battery_c_rating) if battery_c_rating in [0.5, 1.0, 2.0, 3.0] else 1,
                         key=f"crate_{name}"
                     )
-                    st.markdown(f"_Max charge/discharge: {battery_capacity * battery_c_rating:.0f}W_")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    st.markdown(f"_Max charge/discharge: {battery_capacity_wh * battery_c_rating:.0f}W_")
 
                 # Auto-assign voltage type
                 voltage_type = comp_data.get("voltage", "DC")
@@ -270,22 +371,26 @@ if add_components:
                 st.markdown(f"_Weight: {component_weight}kg_")
 
                 # Add to component list
-                user_components.append({
-                    "name": name,
-                    "price": price,
-                    "voltage": voltage_type,
-                    "rating": voltage_value,
-                    "power_rating": power_rating,
-                    "max_current": max_current,
-                    "battery_capacity": battery_capacity,
-                    "battery_c_rating": battery_c_rating,
-                    "weight": component_weight,
-                    "category": comp_data["category"],
-                    "includes_controller": comp_data.get("includes_controller", False),
-                    "is_appliance": "Appliances" in comp_data["category"]
-                })
-                total_component_cost += price
-                total_component_weight += component_weight
+                for i in range(quantity):
+                    user_components.append({
+                        "name": name,
+                        "price": price,
+                        "voltage": voltage_type,
+                        "rating": voltage_value,
+                        "power_rating": power_rating,
+                        "max_current": max_current,
+                        "battery_capacity": battery_capacity_wh,  # Now in Wh
+                        "battery_capacity_ah": battery_capacity_ah,
+                        "battery_voltage": battery_voltage,
+                        "battery_c_rating": battery_c_rating,
+                        "weight": component_weight,
+                        "category": comp_data["category"],
+                        "includes_controller": comp_data.get("includes_controller", False),
+                        "is_appliance": "Appliances" in comp_data["category"],
+                        "quantity": quantity
+                    })
+                    total_component_cost += price
+                    total_component_weight += component_weight
 
 # --- Step 3: Summary ---
 st.markdown("---")
@@ -308,18 +413,37 @@ if user_components:
     for category, comps in components_by_category.items():
         st.markdown(f"**{category}:**")
         for c in comps:
+            quantity = c.get('quantity', 1)
             if "Battery" in c['name']:
-                st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V, {c['battery_capacity']}Wh, {c['battery_c_rating']}C, {c['weight']}kg)")
+                if quantity > 1:
+                    st.markdown(f"- {c['name']} — ${c['price']} each × {quantity} = ${c['price'] * quantity} ({c['rating']}V, {c['battery_capacity_ah']}Ah, {c['battery_c_rating']}C, {c['weight']}kg each)")
+                else:
+                    st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V, {c['battery_capacity_ah']}Ah, {c['battery_c_rating']}C, {c['weight']}kg)")
             elif "Controller" in c['name']:
-                st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V, {c['power_rating']}W, {c['max_current']}A, {c['weight']}kg)")
+                if quantity > 1:
+                    st.markdown(f"- {c['name']} — ${c['price']} each × {quantity} = ${c['price'] * quantity} ({c['rating']}V, {c['power_rating']}W, {c['max_current']}A, {c['weight']}kg each)")
+                else:
+                    st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V, {c['power_rating']}W, {c['max_current']}A, {c['weight']}kg)")
             elif "Solar panel" in c['name']:
-                st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V, {c['power_rating']}Wp, {c['weight']}kg)")
+                if quantity > 1:
+                    st.markdown(f"- {c['name']} — ${c['price']} each × {quantity} = ${c['price'] * quantity} ({c['rating']}V, {c['power_rating']}Wp, {c['weight']}kg each)")
+                else:
+                    st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V, {c['power_rating']}Wp, {c['weight']}kg)")
             elif c['name'] == "Inverter":
-                st.markdown(f"- {c['name']} — ${c['price']} ({c['voltage']}, {c['weight']}kg)")
+                if quantity > 1:
+                    st.markdown(f"- {c['name']} — ${c['price']} each × {quantity} = ${c['price'] * quantity} ({c['voltage']}, {c['weight']}kg each)")
+                else:
+                    st.markdown(f"- {c['name']} — ${c['price']} ({c['voltage']}, {c['weight']}kg)")
             elif c.get('is_appliance', False):
-                st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V {c['voltage']}, {c['power_rating']}W, {c['weight']}kg)")
+                if quantity > 1:
+                    st.markdown(f"- {c['name']} — ${c['price']} each × {quantity} = ${c['price'] * quantity} ({c['rating']}V {c['voltage']}, {c['power_rating']}W, {c['weight']}kg each)")
+                else:
+                    st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V {c['voltage']}, {c['power_rating']}W, {c['weight']}kg)")
             else:
-                st.markdown(f"- {c['name']} — ${c['price']} ({c.get('voltage', 'N/A')}, {c['weight']}kg)")
+                if quantity > 1:
+                    st.markdown(f"- {c['name']} — ${c['price']} each × {quantity} = ${c['price'] * quantity} ({c.get('voltage', 'N/A')}, {c['weight']}kg each)")
+                else:
+                    st.markdown(f"- {c['name']} — ${c['price']} ({c.get('voltage', 'N/A')}, {c['weight']}kg)")
 else:
     st.write("No components added.")
 
