@@ -153,13 +153,48 @@ components_data = {
     "CSC48401 - Controller Beast": {"base_price": 120, "weight": 0.5, "category": "Controllers", "power_rating": 1920, "voltage": "DC", "max_current": 40, "default_rating": 48},
     
     # Batteries
-    "CBA75001 - Battery 750Wh": {"base_price": 150, "weight": 9.0, "category": "Batteries", "voltage": 25.6, "capacity_ah": 30, "c_rating": 1.0, "default_rating": 25.6},
-    "CBA15001 - Battery 1.5kWh": {"base_price": 250, "weight": 18.0, "category": "Batteries", "voltage": 51.2, "capacity_ah": 30, "c_rating": 1.0, "default_rating": 51.2},
-    "CBA20001 - Battery 5kWh": {"base_price": 1000, "weight": 50.0, "category": "Batteries", "voltage": 25.6, "capacity_ah": 200, "c_rating": 1.0, "includes_controller": True, "default_rating": 25.6},    
-    
-    # 🔥 ADD CUSTOM BATTERY RIGHT HERE 🔥
-    "Custom Battery": {"base_price": 100, "weight": 10.0, "category": "Batteries", "voltage": 24, "capacity_ah": 0, "c_rating": 1.0, "default_rating": 24},
-
+    # Batteries
+"CBA75001 - Battery 750Wh": {
+    "base_price": 150, 
+    "weight": 9.0, 
+    "category": "Batteries", 
+    "voltage": 25.6, 
+    "capacity_ah": 30, 
+    "charge_c_rating": 1.0,  # NEW
+    "discharge_c_rating": 2.0,  # NEW
+    "default_rating": 25.6
+},
+"CBA15001 - Battery 1.5kWh": {
+    "base_price": 250, 
+    "weight": 18.0, 
+    "category": "Batteries", 
+    "voltage": 51.2, 
+    "capacity_ah": 30, 
+    "charge_c_rating": 1.0,  # NEW
+    "discharge_c_rating": 2.0,  # NEW
+    "default_rating": 51.2
+},
+"CBA20001 - Battery 5kWh": {
+    "base_price": 1000, 
+    "weight": 50.0, 
+    "category": "Batteries", 
+    "voltage": 25.6, 
+    "capacity_ah": 200, 
+    "charge_c_rating": 1.0,  # NEW
+    "discharge_c_rating": 2.0,  # NEW
+    "includes_controller": True, 
+    "default_rating": 25.6
+},    
+"Custom Battery": {
+    "base_price": 100, 
+    "weight": 10.0, 
+    "category": "Batteries", 
+    "voltage": 24, 
+    "capacity_ah": 0, 
+    "charge_c_rating": 1.0,  # NEW
+    "discharge_c_rating": 1.0,  # NEW
+    "default_rating": 24
+},
     # Power Conversion
     "Inverter": {"base_price": 200, "weight": 2.0, "category": "Power Conversion", "voltage": "DC → AC", "default_rating": 48, "capacity_options": [
         {"capacity": 500, "price_adjust": 0},
@@ -169,6 +204,14 @@ components_data = {
         {"capacity": 5000, "price_adjust": 800}
     ]},
     
+    # NEW: Solar Inverter (All-in-one unit)
+    "Solar Inverter": {"base_price": 500, "weight": 5.0, "category": "Power Conversion", "voltage": "All-in-one", "default_rating": 48, "capacity_options": [
+        {"capacity": 3000, "price_adjust": 0},
+        {"capacity": 5000, "price_adjust": 300},
+        {"capacity": 8000, "price_adjust": 600},
+        {"capacity": 10000, "price_adjust": 1000}
+    ], "is_solar_inverter": True, "includes_mppt": True},
+
     # Solar Panels
     "CSP12501 - Solar panel 125W": {"base_price": 45, "weight": 8.0, "category": "Solar Panels", "power_rating": 125, "voltage": 24, "default_rating": 24},
     "CSP32501 - Solar panel 325W": {"base_price": 75, "weight": 20.0, "category": "Solar Panels", "power_rating": 325, "voltage": 24, "default_rating": 24},
@@ -217,15 +260,29 @@ total_component_weight = 0
 if add_components:
     st.subheader("Select Components to Include")
     
+    selected_controller = None  # Track which controller is selected
+
     # Group components by category
     categories = sorted(set(comp_data["category"] for comp_data in components_data.values()))
     
     for category in categories:
         st.markdown(f"**{category}**")
         category_components = {name: data for name, data in components_data.items() if data["category"] == category}
+
+                # ADD THESE 2 LINES HERE (for Controllers category only):
+        if category == "Controllers":
+            selected_controller = st.radio("Select a Controller:", ["None"] + list(category_components.keys()))
         
         for name, comp_data in category_components.items():
-            checked = st.checkbox(name, key=f"check_{name}")
+                        # REPLACE THIS LINE:
+            if category == "Controllers":
+                checked = (selected_controller == name)
+            else:
+                checked = st.checkbox(name, key=f"check_{name}")
+
+            # ADD THIS NEW CHECK:
+            if checked and category == "Controllers" and selected_controller == "None":
+                checked = False  # Don't show settings if "None" is selected
             
             if checked:
                 st.markdown(f"**{name} Settings:**")
@@ -254,7 +311,8 @@ if add_components:
                     power_rating = comp_data["default_power"]
 
                 # Inverter Capacity Selection
-                if name == "Inverter":
+                # Inverter Capacity Selection
+                if name == "Inverter" or name == "Solar Inverter":
                     inverter_option = st.selectbox(
                         "Inverter Capacity:",
                         options=comp_data["capacity_options"],
@@ -264,6 +322,10 @@ if add_components:
                     power_rating = inverter_option["capacity"]
                     price += inverter_option["price_adjust"]
                     st.markdown(f"_Capacity: {power_rating}W_")
+                    
+                    # Add special note for Solar Inverter
+                    if name == "Solar Inverter":
+                        st.markdown("_All-in-one unit: Solar → Battery → AC (includes MPPT controller)_")
                 
                 if power_rating > 0:
                     if "Solar panel" in name:
@@ -280,13 +342,18 @@ if add_components:
                 battery_capacity_wh = 0
                 battery_capacity_ah = 0
                 battery_voltage = 24
-                battery_c_rating = 1.0 
+                battery_charge_c_rating = 1.0  # CHANGE THIS
+                battery_discharge_c_rating = 1.0  # ADD THIS 
+                #new changes
+                # Battery Specific Settings
+
 
                 # Battery Specific Settings
                 if "Battery" in name:
                     battery_capacity_ah = comp_data.get("capacity_ah", 0)
                     battery_voltage = comp_data.get("voltage", 24)
-                    battery_c_rating = comp_data.get("c_rating", 1.0)
+                    battery_charge_c_rating = comp_data.get("charge_c_rating", 1.0)  # NEW
+                    battery_discharge_c_rating = comp_data.get("discharge_c_rating", 1.0)  # NEW
                     
                     if battery_capacity_ah > 0:
                         # Pre-configured battery - show Ah and calculated Wh
@@ -310,24 +377,40 @@ if add_components:
                         )
                         battery_capacity_wh = battery_voltage * battery_capacity_ah
                     
-                    # C-Rating dropdown with grey box
+                    # Charge C-Rating dropdown
                     st.markdown('<div class="dropdown-container">', unsafe_allow_html=True)
-                    battery_c_rating = st.selectbox(
-                        "C-Rating:", 
+                    battery_charge_c_rating = st.selectbox(
+                        "Charge C-Rating (input from solar):", 
                         options=[0.5, 1.0, 2.0, 3.0], 
-                        index=[0.5, 1.0, 2.0, 3.0].index(battery_c_rating) if battery_c_rating in [0.5, 1.0, 2.0, 3.0] else 1,
-                        key=f"crate_{name}"
+                        index=[0.5, 1.0, 2.0, 3.0].index(battery_charge_c_rating) if battery_charge_c_rating in [0.5, 1.0, 2.0, 3.0] else 1,
+                        key=f"charge_crate_{name}"
                     )
                     st.markdown('</div>', unsafe_allow_html=True)
                     
-                    st.markdown(f"_Max charge/discharge: {battery_capacity_wh * battery_c_rating:.0f}W_")
-
+                    # Discharge C-Rating dropdown
+                    st.markdown('<div class="dropdown-container">', unsafe_allow_html=True)
+                    battery_discharge_c_rating = st.selectbox(
+                        "Discharge C-Rating (output to loads):", 
+                        options=[0.5, 1.0, 2.0, 3.0], 
+                        index=[0.5, 1.0, 2.0, 3.0].index(battery_discharge_c_rating) if battery_discharge_c_rating in [0.5, 1.0, 2.0, 3.0] else 1,
+                        key=f"discharge_crate_{name}"
+                    )
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    # Display max charge/discharge power
+                    max_charge_power = battery_capacity_wh * battery_charge_c_rating
+                    max_discharge_power = battery_capacity_wh * battery_discharge_c_rating
+                    st.markdown(f"_Max solar input: {max_charge_power:.0f}W_")
+                    st.markdown(f"_Max load output: {max_discharge_power:.0f}W_")
+                # Auto-assign voltage type
                 # Auto-assign voltage type
                 voltage_type = comp_data.get("voltage", "DC")
                 if "Battery" in name:
                     st.markdown("_Voltage Type: DC (fixed for batteries)_")
                 elif name == "Inverter":
                     st.markdown("_Converts DC to AC (input DC, output AC)_")
+                elif name == "Solar Inverter":  # NEW
+                    st.markdown("_All-in-one: Solar → Battery → AC (includes MPPT controller)_")
                 elif voltage_type == "N/A":
                     st.markdown("_Voltage: Not Applicable_")
                 elif "default_voltage" in comp_data:
@@ -371,6 +454,7 @@ if add_components:
                 st.markdown(f"_Weight: {component_weight}kg_")
 
                 # Add to component list
+                # Add to component list
                 for i in range(quantity):
                     user_components.append({
                         "name": name,
@@ -379,13 +463,17 @@ if add_components:
                         "rating": voltage_value,
                         "power_rating": power_rating,
                         "max_current": max_current,
-                        "battery_capacity": battery_capacity_wh,  # Now in Wh
+                        "battery_capacity": battery_capacity_wh,
                         "battery_capacity_ah": battery_capacity_ah,
                         "battery_voltage": battery_voltage,
-                        "battery_c_rating": battery_c_rating,
+                        "battery_charge_c_rating": battery_charge_c_rating,  # NEW - ADD THIS
+                        "battery_discharge_c_rating": battery_discharge_c_rating,  # NEW - ADD THIS
+                        # "battery_c_rating": battery_c_rating,  # REMOVE OR COMMENT THIS LINE
                         "weight": component_weight,
                         "category": comp_data["category"],
                         "includes_controller": comp_data.get("includes_controller", False),
+                        "includes_mppt": comp_data.get("includes_mppt", False),  # NEW
+                        "is_solar_inverter": comp_data.get("is_solar_inverter", False),  # NEW
                         "is_appliance": "Appliances" in comp_data["category"],
                         "quantity": quantity
                     })
@@ -415,10 +503,12 @@ if user_components:
         for c in comps:
             quantity = c.get('quantity', 1)
             if "Battery" in c['name']:
+                battery_charge_c = c.get('battery_charge_c_rating', 1.0)
+                battery_discharge_c = c.get('battery_discharge_c_rating', 1.0)
                 if quantity > 1:
-                    st.markdown(f"- {c['name']} — ${c['price']} each × {quantity} = ${c['price'] * quantity} ({c['rating']}V, {c['battery_capacity_ah']}Ah, {c['battery_c_rating']}C, {c['weight']}kg each)")
+                    st.markdown(f"- {c['name']} — ${c['price']} each × {quantity} = ${c['price'] * quantity} ({c['rating']}V, {c['battery_capacity_ah']}Ah, Charge: {battery_charge_c}C/Discharge: {battery_discharge_c}C, {c['weight']}kg each)")
                 else:
-                    st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V, {c['battery_capacity_ah']}Ah, {c['battery_c_rating']}C, {c['weight']}kg)")
+                    st.markdown(f"- {c['name']} — ${c['price']} ({c['rating']}V, {c['battery_capacity_ah']}Ah, Charge: {battery_charge_c}C/Discharge: {battery_discharge_c}C, {c['weight']}kg)")
             elif "Controller" in c['name']:
                 if quantity > 1:
                     st.markdown(f"- {c['name']} — ${c['price']} each × {quantity} = ${c['price'] * quantity} ({c['rating']}V, {c['power_rating']}W, {c['max_current']}A, {c['weight']}kg each)")
@@ -454,8 +544,8 @@ st.markdown(f"### 💰 Total System Cost: ${total_cost}")
 st.markdown(f"### ⚖️ Total System Weight: {total_weight}kg")
 
 # --- Step 4: Engineering Viability Check ---
-st.markdown("---")
-st.subheader("⚙️ Engineering Compatibility Check")
+#st.markdown("---")
+#st.subheader("⚙️ Engineering Compatibility Check1")
 
 viable = True
 messages = []
@@ -463,18 +553,83 @@ messages = []
 # Get component types for easier checking
 has_battery = any("Battery" in c["name"] for c in user_components)
 has_inverter = any(c["name"] == "Inverter" for c in user_components)
+has_solar_inverter = any(c["name"] == "Solar Inverter" for c in user_components)  # NEW
 has_controller = any("Controller" in c["name"] for c in user_components)
 has_solar_panels = any("Solar panel" in c["name"] for c in user_components)
 has_appliances = any(c.get("is_appliance", False) for c in user_components)
+
+appliances = [c for c in user_components if c.get("is_appliance", False)]
 
 batteries = [c for c in user_components if "Battery" in c["name"]]
 controllers = [c for c in user_components if "Controller" in c["name"]]
 solar_panels = [c for c in user_components if "Solar panel" in c["name"]]
 inverter = next((c for c in user_components if c["name"] == "Inverter"), None)
+solar_inverter = next((c for c in user_components if c["name"] == "Solar Inverter"), None)  # NEW
+# Get all AC loads (product + AC appliances)
+all_ac_loads = []
+
+# Add main product if it's AC
+if product_info["voltage"] == "AC":
+    all_ac_loads.append({
+        "name": product_info["name"],
+        "power": product_info["power_watts"]
+    })
+
+# Add AC appliances from components
+for appliance in appliances:
+    if appliance.get("voltage") == "AC":
+        all_ac_loads.append({
+            "name": appliance["name"],
+            "power": appliance.get("power_rating", 0)
+        })
+
+# Find the biggest single AC load
+biggest_ac_load_power = 0
+biggest_ac_load_name = ""
+for load in all_ac_loads:
+    if load["power"] > biggest_ac_load_power:
+        biggest_ac_load_power = load["power"]
+        biggest_ac_load_name = load["name"]
+
+# Calculate total AC load power
+total_ac_load_power = sum(load["power"] for load in all_ac_loads)
 motor_attachments = [c for c in user_components if c["category"] == "Motor Attachments"]
 cooker_accessories = [c for c in user_components if c["category"] == "Cooker Accessories"]
-appliances = [c for c in user_components if c.get("is_appliance", False)]
+#appliances = [c for c in user_components if c.get("is_appliance", False)]
 iceboxes = [c for c in user_components if "icebox" in c["name"].lower()]
+
+# --- System Status Helper Function ---
+def get_system_status(has_battery, has_inverter, has_solar_inverter, has_solar_panels, has_controller, batteries):
+    """Determine system status based on component selection"""
+    
+    # Red: Electrically impossible
+    if not has_battery and not has_solar_panels and not has_solar_inverter:
+        return "red", "❌ No energy source (needs battery, solar panels, or solar inverter)"
+    
+    # Green: Complete solar system with Solar Inverter
+    if has_solar_inverter and has_battery:
+        return "green", "✅ Complete solar system with Solar Inverter (all-in-one unit)"
+    
+    # Green: Complete solar system with traditional setup
+    if has_solar_panels and has_battery:
+        # Check if we have a controller or battery with built-in controller
+        battery_has_controller = any(b.get("includes_controller", False) for b in batteries if "Battery" in b["name"])
+        if has_controller or battery_has_controller:
+            return "green", "✅ Complete solar system with energy source and storage"
+    
+    # Orange: Works conditionally (missing solar panels but has battery+inverter)
+    if has_battery and has_inverter and not has_solar_panels and not has_solar_inverter:
+        return "orange", "⚠️ System will work but needs external energy source (grid/generator) or user-provided solar panels"
+    
+    # Orange: Solar Inverter without battery
+    if has_solar_inverter and not has_battery:
+        return "orange", "⚠️ Solar Inverter needs a battery for energy storage"
+    
+    # Orange: Traditional system without controller
+    if has_battery and not has_solar_inverter:
+        return "orange", "⚠️ System has storage but may need additional components for complete operation"
+    
+    return "red", "❌ Incomplete system configuration"
 
 # --- Rule 1: AC Product with DC Components requires Inverter ---
 if product_info["voltage"] == "AC" and (has_battery or has_appliances) and not has_inverter:
@@ -487,11 +642,12 @@ if product_info["voltage"] == "DC" and has_inverter:
     messages.append("⚠️ DC product cannot use Inverter (already DC-compatible)")
 
 # --- Rule 3: Battery requires compatible Controller (unless battery includes one) ---
-if has_battery and not has_controller:
+# BUT only check this if we have solar panels
+if has_battery and has_solar_panels and not has_controller:
     battery_with_controller = any(b.get("includes_controller", False) for b in batteries)
     if not battery_with_controller:
         viable = False
-        messages.append("⚠️ Battery requires a Solar Controller for regulation")
+        messages.append("⚠️ Solar panels require a Solar Controller when connected to a battery")
 
 # --- Rule 4: Voltage matching between Battery and Controllers ---
 for battery in batteries:
@@ -531,16 +687,26 @@ if has_controller:
             messages.append(f"⚠️ Total appliance power ({total_appliance_power}W) exceeds {controller['name']} max output ({controller_power}W)")
 
 # --- Rule 6: Battery C-rating limits ---
+# --- Rule 6: Battery Charge/Discharge C-rating limits ---
 for battery in batteries:
     battery_capacity = float(battery.get("battery_capacity", 0))
-    battery_c_rating = float(battery.get("battery_c_rating", 1.0))
-    max_battery_power = battery_capacity * battery_c_rating
+    battery_charge_c_rating = float(battery.get("battery_charge_c_rating", 1.0))
+    battery_discharge_c_rating = float(battery.get("battery_discharge_c_rating", 1.0))
     
-    # Check total load against battery C-rating
-    if total_appliance_power > max_battery_power:
+    max_charge_power = battery_capacity * battery_charge_c_rating
+    max_discharge_power = battery_capacity * battery_discharge_c_rating
+    
+    # Check if solar power exceeds battery charge rating
+    if solar_panels:
+        total_solar_power = sum(float(panel.get("power_rating", 0)) for panel in solar_panels)
+        if total_solar_power > max_charge_power:
+            viable = False
+            messages.append(f"⚠️ Total solar power ({total_solar_power}W) exceeds {battery['name']} max charge rate ({max_charge_power:.0f}W)")
+    
+    # Check if total load exceeds battery discharge rating
+    if total_appliance_power > max_discharge_power:
         viable = False
-        messages.append(f"⚠️ Total load ({total_appliance_power}W) exceeds {battery['name']} max discharge ({max_battery_power:.0f}W)")
-
+        messages.append(f"⚠️ Total load ({total_appliance_power}W) exceeds {battery['name']} max discharge rate ({max_discharge_power:.0f}W)")
 # --- Rule 7: Motor attachment compatibility ---
 if motor_attachments and not any("Mighty Motor" in appliance["name"] for appliance in appliances):
     viable = False
@@ -564,20 +730,140 @@ if solar_panels and controllers:
 if any("Ice-maker" in appliance["name"] for appliance in appliances) and not iceboxes:
     st.warning("💡 Consider adding an insulated icebox for optimal ice-maker performance")
 
-# --- Step 5: Result ---
-if not user_components:
-    st.info("ℹ️ Add components to check engineering compatibility")
-elif viable:
-    st.success("✅ System is electrically compatible and power ratings are within limits.")
+# --- Rule 11: Inverter capacity check ---
+if inverter and all_ac_loads:
+    inverter_power = float(inverter.get("power_rating", 0))
+    
+    # Check if inverter can handle the biggest single load
+    if biggest_ac_load_power > inverter_power:
+        viable = False
+        messages.append(f"⚠️ {biggest_ac_load_name} ({biggest_ac_load_power}W) exceeds Inverter capacity ({inverter_power}W)")
+    
+    # Show info about total AC load (not an error, just information)
+    if len(all_ac_loads) > 1:
+        messages.append(f"ℹ️ Total AC load: {total_ac_load_power}W (across {len(all_ac_loads)} devices)")
+
+
+# --- Rule 12: System configuration compatibility ---
+# Check if system uses allowed combinations
+if has_solar_inverter:
+    # Solar Inverter systems
+    if has_inverter:
+        viable = False
+        messages.append("⚠️ Solar Inverter cannot be used with a plain Inverter (redundant)")
+    
+    if has_controller and not any(b.get("includes_controller", False) for b in batteries):
+        messages.append("ℹ️ Note: Solar Inverter includes built-in MPPT controller")
+    
+    if not has_battery:
+        viable = False
+        messages.append("⚠️ Solar Inverter requires a battery for energy storage")
+    
+    # Check if Solar Inverter has enough capacity
+    if solar_inverter and all_ac_loads:
+        solar_inverter_power = float(solar_inverter.get("power_rating", 0))
+        if biggest_ac_load_power > solar_inverter_power:
+            viable = False
+            messages.append(f"⚠️ {biggest_ac_load_name} ({biggest_ac_load_power}W) exceeds Solar Inverter capacity ({solar_inverter_power}W)")
 else:
-    st.error("❌ Incompatible system configuration detected:")
-    for msg in messages:
-        st.markdown(f"- {msg}")
+    # Traditional systems
+    if product_info["voltage"] == "AC" and has_battery and not has_inverter:
+        viable = False
+        messages.append("⚠️ AC system requires either Inverter or Solar Inverter with battery")
+    
+    if has_solar_panels and has_battery and not has_controller and not any(b.get("includes_controller", False) for b in batteries):
+        viable = False
+        messages.append("⚠️ Solar panels with battery require a Solar Controller")
+
+
+# --- Step 5: System Status Display ---
+st.markdown("---")
+st.subheader("🔋 System Status Check")
+
+if user_components:
+    # Determine system status
+    # Determine system status
+    status_color, status_message = get_system_status(
+        has_battery, 
+        has_inverter, 
+        has_solar_inverter,  # ADD THIS
+        has_solar_panels, 
+        has_controller,
+        batteries
+    )
+    
+    # Display status with appropriate color
+    if status_color == "green":
+        st.success(status_message)
+    elif status_color == "orange":
+        st.warning(status_message)
+    else:  # red
+        st.error(status_message)
+    
+    # --- Engineering Compatibility Check ---
+    st.subheader("⚙️ Engineering Compatibility Check")
+    
+    if not viable:
+        st.error("❌ Incompatible system configuration detected:")
+        for msg in messages:
+            st.markdown(f"- {msg}")
+    else:
+        st.success("✅ System components are electrically compatible.")
+        
+else:
+    st.info("ℹ️ Add components to check system status and compatibility")
+
+
 
 # --- Additional System Summary ---
 if user_components:
     st.markdown("---")
     st.subheader("📊 Power System Summary")
+
+    # === ADD THIS NEW CODE BLOCK HERE ===
+    # Add energy source indicator
+    energy_status = []
+    if has_solar_panels:
+        energy_status.append("✅ Solar panels")
+    if has_battery:
+        energy_status.append("✅ Battery storage")
+    
+    if energy_status:
+        st.write("**Energy Configuration:** " + " + ".join(energy_status))
+    else:
+        st.warning("⚠️ **No energy sources configured**")
+    
+    st.markdown("")  # Add spacing
+    # === END OF NEW CODE ===
+
+    # === NEW: Add inverter and load information ===
+    # Add inverter and load information
+    if inverter or solar_inverter:
+        selected_inverter = inverter if inverter else solar_inverter
+        inverter_type = "Solar Inverter" if solar_inverter else "Inverter"
+        inverter_power = float(selected_inverter.get("power_rating", 0))
+        
+        st.write(f"**{inverter_type} Capacity:** {inverter_power}W")
+        
+        if solar_inverter:
+            st.write(f"**Type:** All-in-one (Solar → Battery → AC, includes MPPT)")
+        
+        if all_ac_loads:
+            st.write(f"**Biggest AC Load:** {biggest_ac_load_name} ({biggest_ac_load_power}W)")
+            st.write(f"**Total AC Load:** {total_ac_load_power}W")
+            
+            # Calculate inverter utilization
+            if biggest_ac_load_power > 0:
+                utilization = (biggest_ac_load_power / inverter_power) * 100
+                if utilization <= 100:
+                    st.write(f"**{inverter_type} Utilization:** {utilization:.1f}% of capacity")
+                else:
+                    st.warning(f"⚠️ **{inverter_type} Overload:** {utilization:.1f}% over capacity")
+    
+    st.markdown("")  # Add spacing
+    # === END OF NEW CODE ===
+    
+    system_limits = {}
     
     system_limits = {}
     
@@ -591,9 +877,14 @@ if user_components:
     
     if batteries:
         total_battery_capacity = sum(float(b.get("battery_capacity", 0)) for b in batteries)
-        max_total_power = sum(float(b.get("battery_capacity", 0)) * float(b.get("battery_c_rating", 1.0)) for b in batteries)
+        
+        # Calculate max charge and discharge power
+        max_charge_power = sum(float(b.get("battery_capacity", 0)) * float(b.get("battery_charge_c_rating", 1.0)) for b in batteries)
+        max_discharge_power = sum(float(b.get("battery_capacity", 0)) * float(b.get("battery_discharge_c_rating", 1.0)) for b in batteries)
+        
         system_limits["Total Battery Capacity"] = f"{total_battery_capacity}Wh"
-        system_limits["Max System Power"] = f"{max_total_power:.0f}W"
+        system_limits["Max Solar Input"] = f"{max_charge_power:.0f}W"
+        system_limits["Max Load Output"] = f"{max_discharge_power:.0f}W"
     
     if appliances:
         total_appliance_power = sum(float(appliance.get("power_rating", 0)) for appliance in appliances)
@@ -613,10 +904,58 @@ if user_components:
         st.write(f"**Controller Utilization:** {utilization:.1f}%")
 
 # --- Recommendations ---
-if user_components and viable:
+if user_components:
     st.markdown("---")
     st.subheader("💡 Recommendations")
     
+    # Add warning about missing solar panels - NEW CODE
+    if has_battery and has_inverter and not has_solar_panels:
+        st.warning("⚠️ **Important:** This system has no built-in energy source. It requires either:")
+        st.markdown("- User-provided solar panels")
+        st.markdown("- Grid connection (not yet modeled)")
+        st.markdown("- Generator input (not yet modeled)")
+        st.markdown("")  # Add spacing
+
+
+        # === NEW: Inverter recommendation ===
+    if (inverter or solar_inverter) and all_ac_loads:
+        selected_inverter = inverter if inverter else solar_inverter
+        inverter_type = "Solar Inverter" if solar_inverter else "Inverter"
+        inverter_power = float(selected_inverter.get("power_rating", 0))
+        
+        # Check if inverter is near capacity
+        if biggest_ac_load_power > inverter_power * 0.8:  # If load is more than 80% of inverter capacity
+            st.info(f"🔌 **{inverter_type} sizing:** Your biggest load ({biggest_ac_load_power}W) uses {biggest_ac_load_power/inverter_power*100:.0f}% of {inverter_type.lower()} capacity ({inverter_power}W). Consider upgrading for safety margin.")
+            st.markdown("")  # Add spacing
+        
+        # Check if multiple devices exceed total inverter capacity
+        if len(all_ac_loads) > 1 and total_ac_load_power > inverter_power:
+            st.warning(f"⚠️ **Load management needed:** Total AC load ({total_ac_load_power}W) exceeds {inverter_type.lower()} capacity ({inverter_power}W). Devices cannot run simultaneously.")
+            st.markdown("")  # Add spacing
+    
+    # Solar Inverter specific recommendations
+    if has_solar_inverter:
+        if not has_battery:
+            st.error("❌ **Missing battery:** Solar Inverter requires a battery for energy storage")
+        elif has_controller and not any(b.get("includes_controller", False) for b in batteries):
+            st.info("💡 **Note:** Solar Inverter includes built-in MPPT controller. External controller may not be needed.")
+    
+    # REST OF YOUR EXISTING RECOMMENDATIONS (unchanged)
+    #Commented out to check
+    #if inverter and all_ac_loads:
+        #inverter_power = float(inverter.get("power_rating", 0))
+        
+        # Check if inverter is near capacity
+        #if biggest_ac_load_power > inverter_power * 0.8:  # If load is more than 80% of inverter capacity
+            #st.info(f"🔌 **Inverter sizing:** Your biggest load ({biggest_ac_load_power}W) uses {biggest_ac_load_power/inverter_power*100:.0f}% of inverter capacity ({inverter_power}W). Consider upgrading for safety margin.")
+            #st.markdown("")  # Add spacing
+        
+        # Check if multiple devices exceed total inverter capacity
+        #if len(all_ac_loads) > 1 and total_ac_load_power > inverter_power:
+            #st.warning("⚠️ **Load management needed:** Total AC load ({total_ac_load_power}W) exceeds inverter capacity ({inverter_power}W). Devices cannot run simultaneously.")
+            #st.markdown("")  # Add spacing
+
+
     if has_battery and not has_controller and not any(b.get("includes_controller", False) for b in batteries):
         st.info("Consider adding a Solar Controller for better battery charging efficiency")
     
