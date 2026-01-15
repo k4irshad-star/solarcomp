@@ -158,32 +158,32 @@ components_data = {
     "base_price": 150, 
     "weight": 9.0, 
     "category": "Batteries", 
-    "voltage": 25.6, 
-    "capacity_ah": 30, 
+    "voltage": 24, 
+    "capacity_ah": 15, 
     "charge_c_rating": 1.0,  # NEW
     "discharge_c_rating": 2.0,  # NEW
-    "default_rating": 25.6
+    "default_rating": 24
 },
 "CBA15001 - Battery 1.5kWh": {
     "base_price": 250, 
     "weight": 18.0, 
     "category": "Batteries", 
-    "voltage": 51.2, 
+    "voltage": 24, 
     "capacity_ah": 30, 
     "charge_c_rating": 1.0,  # NEW
     "discharge_c_rating": 2.0,  # NEW
-    "default_rating": 51.2
+    "default_rating": 24
 },
 "CBA20001 - Battery 5kWh": {
     "base_price": 1000, 
     "weight": 50.0, 
     "category": "Batteries", 
-    "voltage": 25.6, 
-    "capacity_ah": 200, 
+    "voltage": 24.0, 
+    "capacity_ah": 100, 
     "charge_c_rating": 1.0,  # NEW
     "discharge_c_rating": 2.0,  # NEW
     "includes_controller": True, 
-    "default_rating": 25.6
+    "default_rating": 24
 },    
 "Custom Battery": {
     "base_price": 100, 
@@ -192,25 +192,43 @@ components_data = {
     "voltage": 24, 
     "capacity_ah": 0, 
     "charge_c_rating": 1.0,  # NEW
-    "discharge_c_rating": 1.0,  # NEW
+    "discharge_c_rating": 2.0,  # NEW
     "default_rating": 24
 },
     # Power Conversion
-    "Inverter": {"base_price": 200, "weight": 2.0, "category": "Power Conversion", "voltage": "DC → AC", "default_rating": 48, "capacity_options": [
-        {"capacity": 500, "price_adjust": 0},
-        {"capacity": 1000, "price_adjust": 100},
-        {"capacity": 2000, "price_adjust": 300},
-        {"capacity": 3000, "price_adjust": 500},
-        {"capacity": 5000, "price_adjust": 800}
-    ]},
     
-    # NEW: Solar Inverter (All-in-one unit)
-    "Solar Inverter": {"base_price": 500, "weight": 5.0, "category": "Power Conversion", "voltage": "All-in-one", "default_rating": 48, "capacity_options": [
-        {"capacity": 3000, "price_adjust": 0},
-        {"capacity": 5000, "price_adjust": 300},
-        {"capacity": 8000, "price_adjust": 600},
-        {"capacity": 10000, "price_adjust": 1000}
-    ], "is_solar_inverter": True, "includes_mppt": True},
+        # Power Conversion
+    "Inverter": {
+        "base_price": 200, 
+        "weight": 2.0, 
+        "category": "Power Conversion", 
+        "voltage": "DC → AC", 
+        "dc_input_voltage": 48,
+        "capacity_options": [
+            {"capacity": 500, "price_adjust": 0},
+            {"capacity": 1000, "price_adjust": 100},
+            {"capacity": 2000, "price_adjust": 300},
+            {"capacity": 3000, "price_adjust": 500},
+            {"capacity": 5000, "price_adjust": 800}
+        ]
+    },
+    
+    # Solar Inverter (All-in-one unit)
+    "Solar Inverter": {
+        "base_price": 500, 
+        "weight": 5.0, 
+        "category": "Power Conversion", 
+        "voltage": "All-in-one", 
+        "dc_input_voltage": 48,
+        "capacity_options": [
+            {"capacity": 3000, "price_adjust": 0},
+            {"capacity": 5000, "price_adjust": 300},
+            {"capacity": 8000, "price_adjust": 600},
+            {"capacity": 10000, "price_adjust": 1000}
+        ],
+        "is_solar_inverter": True, 
+        "includes_mppt": True
+    },
 
     # Solar Panels
     "CSP12501 - Solar panel 125W": {"base_price": 45, "weight": 8.0, "category": "Solar Panels", "power_rating": 125, "voltage": 24, "default_rating": 24},
@@ -261,6 +279,7 @@ if add_components:
     st.subheader("Select Components to Include")
     
     selected_controller = None  # Track which controller is selected
+    selected_inverter = None    # ADD THIS: Track which inverter is selected
 
     # Group components by category
     categories = sorted(set(comp_data["category"] for comp_data in components_data.values()))
@@ -273,10 +292,18 @@ if add_components:
         if category == "Controllers":
             selected_controller = st.radio("Select a Controller:", ["None"] + list(category_components.keys()))
         
+        # ADD THIS: For Power Conversion (Inverters) category
+        if category == "Power Conversion":
+            selected_inverter = st.radio("Select an Inverter:", ["None", "Inverter", "Solar Inverter"])        
+
+
         for name, comp_data in category_components.items():
                         # REPLACE THIS LINE:
+            # Determine if component is checked
             if category == "Controllers":
                 checked = (selected_controller == name)
+            elif category == "Power Conversion":  # ADD THIS
+                checked = (selected_inverter == name)
             else:
                 checked = st.checkbox(name, key=f"check_{name}")
 
@@ -284,6 +311,10 @@ if add_components:
             if checked and category == "Controllers" and selected_controller == "None":
                 checked = False  # Don't show settings if "None" is selected
             
+             # ADD THIS CHECK for Inverters:
+            if checked and category == "Power Conversion" and selected_inverter == "None":
+                checked = False  # Don't show settings if "None" is selected
+
             if checked:
                 st.markdown(f"**{name} Settings:**")
                 
@@ -404,20 +435,16 @@ if add_components:
                     st.markdown(f"_Max load output: {max_discharge_power:.0f}W_")
                 # Auto-assign voltage type
                 # Auto-assign voltage type
+                                # Auto-assign voltage type
                 voltage_type = comp_data.get("voltage", "DC")
                 if "Battery" in name:
                     st.markdown("_Voltage Type: DC (fixed for batteries)_")
                 elif name == "Inverter":
-                    st.markdown("_Converts DC to AC (input DC, output AC)_")
-                elif name == "Solar Inverter":  # NEW
-                    st.markdown("_All-in-one: Solar → Battery → AC (includes MPPT controller)_")
-                elif voltage_type == "N/A":
-                    st.markdown("_Voltage: Not Applicable_")
-                elif "default_voltage" in comp_data:
-                    voltage_type = comp_data["default_voltage"]
-                    st.markdown(f"_Voltage Type: {voltage_type}_")
-                else:
-                    st.markdown(f"_Voltage Type: {voltage_type}_")
+                    dc_voltage = comp_data.get("default_rating", 48)  # or dc_input_voltage if you renamed it
+                    st.markdown(f"_Converts DC to AC (DC input: {dc_voltage}V, AC output: {voltage_rating}V)_")
+                elif name == "Solar Inverter":
+                    dc_voltage = comp_data.get("default_rating", 48)  # or dc_input_voltage if you renamed it
+                    st.markdown(f"_All-in-one: Solar → Battery → AC (DC input: {dc_voltage}V, includes MPPT)_")
 
                 # Voltage Input for configurable components - FIXED HERE
                 voltage_value = comp_data.get("default_rating", 24)
@@ -632,9 +659,11 @@ def get_system_status(has_battery, has_inverter, has_solar_inverter, has_solar_p
     return "red", "❌ Incomplete system configuration"
 
 # --- Rule 1: AC Product with DC Components requires Inverter ---
-if product_info["voltage"] == "AC" and (has_battery or has_appliances) and not has_inverter:
+# --- Rule 1: AC Product with DC Components requires Inverter ---
+if product_info["voltage"] == "AC" and (has_battery or has_appliances) and not has_inverter and not has_solar_inverter:
     viable = False
-    messages.append("⚠️ AC product requires Inverter when using DC components like Battery or DC appliances")
+    messages.append("⚠️ AC product requires either Inverter or Solar Inverter when using DC components like Battery or DC appliances")
+
 
 # --- Rule 2: DC Product should not use Inverter ---
 if product_info["voltage"] == "DC" and has_inverter:
@@ -676,6 +705,36 @@ for battery in batteries:
         except (ValueError, AttributeError):
             viable = False
             messages.append(f"⚠️ Invalid voltage configuration between {battery['name']} and {controller['name']}")
+
+
+# --- Rule 4.5: Voltage matching between Battery and Inverters ---
+for battery in batteries:
+    battery_rating = battery["rating"]
+    
+    # Check with Plain Inverter
+    if inverter:
+        try:
+            # Inverters have a default_rating for their DC input voltage
+            inverter_rating = int(inverter.get("rating", 0))
+            if battery_rating != inverter_rating:
+                viable = False
+                messages.append(f"⚠️ {battery['name']} ({battery_rating}V) not compatible with {inverter['name']} DC input ({inverter_rating}V)")
+        except (ValueError, TypeError):
+            viable = False
+            messages.append(f"⚠️ Voltage configuration error between {battery['name']} and {inverter['name']}")
+    
+    # Check with Solar Inverter
+    if solar_inverter:
+        try:
+            # Solar Inverters also have a default_rating for DC input
+            solar_inverter_rating = int(solar_inverter.get("rating", 0))
+            if battery_rating != solar_inverter_rating:
+                viable = False
+                messages.append(f"⚠️ {battery['name']} ({battery_rating}V) not compatible with {solar_inverter['name']} DC input ({solar_inverter_rating}V)")
+        except (ValueError, TypeError):
+            viable = False
+            messages.append(f"⚠️ Voltage configuration error between {battery['name']} and {solar_inverter['name']}")
+
 
 # --- Rule 5: Total power calculation for appliances ---
 total_appliance_power = sum(float(appliance.get("power_rating", 0)) for appliance in appliances) + product_info["power_watts"]
@@ -767,10 +826,12 @@ if has_solar_inverter:
             messages.append(f"⚠️ {biggest_ac_load_name} ({biggest_ac_load_power}W) exceeds Solar Inverter capacity ({solar_inverter_power}W)")
 else:
     # Traditional systems
-    if product_info["voltage"] == "AC" and has_battery and not has_inverter:
+    # Traditional systems
+    if product_info["voltage"] == "AC" and has_battery and not has_inverter and not has_solar_inverter:
         viable = False
-        messages.append("⚠️ AC system requires either Inverter or Solar Inverter with battery")
-    
+        messages.append("⚠️ AC system requires either Inverter or Solar Inverter with battery") 
+
+
     if has_solar_panels and has_battery and not has_controller and not any(b.get("includes_controller", False) for b in batteries):
         viable = False
         messages.append("⚠️ Solar panels with battery require a Solar Controller")
@@ -883,6 +944,7 @@ if user_components:
         max_discharge_power = sum(float(b.get("battery_capacity", 0)) * float(b.get("battery_discharge_c_rating", 1.0)) for b in batteries)
         
         system_limits["Total Battery Capacity"] = f"{total_battery_capacity}Wh"
+        system_limits["Battery Voltage"] = f"{batteries[0]['rating']}V"  # ADD THIS - assumes all batteries same voltage
         system_limits["Max Solar Input"] = f"{max_charge_power:.0f}W"
         system_limits["Max Load Output"] = f"{max_discharge_power:.0f}W"
     
